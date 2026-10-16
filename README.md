@@ -13,7 +13,7 @@ end-to-end tests using Playwright and Cucumber.
 ## Setup
 
 ```powershell
-npm install
+npm ci
 npm run install:browsers
 Copy-Item .env.example .env
 ```
@@ -43,8 +43,131 @@ application behavior. Do not run destructive tests against production.
 | `npm run lint`                                                                       | Lint JavaScript files                                        |
 | `npm run format:check`                                                               | Check formatting                                             |
 
+## Jenkins CI pipeline
+
+The root `Jenkinsfile` targets a Linux Jenkins agent labelled `linux`, uses Node.js
+24, installs locked dependencies with `npm ci`, installs Chromium and its Linux
+system dependencies, runs the existing lint/format and Node.js test scripts, and
+then runs the `@e2e` Cucumber feature headlessly. That E2E scenario creates an
+EventHub event and books one ticket; configure it only for an approved QA/staging
+environment and a dedicated test account. The pipeline fixes `TEST_ENV=qa` and
+fails configuration rather than running with missing inputs. It never runs
+against production.
+
+### Jenkins prerequisites
+
+- Jenkins with Pipeline, Git, NodeJS, Credentials Binding, and JUnit plugins.
+- A Linux agent with the label `linux`, network access to npm and the QA app, and
+  permission to install Playwright's Linux browser dependencies (the
+  `playwright install --with-deps` command may require root or passwordless sudo).
+- A NodeJS tool installation named exactly `NodeJS 24`, configured under
+  **Manage Jenkins > Tools** with Node.js 24.
+- Java 8 or newer on the agent for generating the Allure HTML report.
+- Optional: the Allure Jenkins plugin to publish Allure results as a Jenkins
+  report. The pipeline archives Allure output whether or not that plugin is used.
+
+### Create and configure the Jenkins job
+
+1. Ensure this branch is available in the configured GitHub repository. For a
+   private repository, add a Jenkins credential of type **Username with password**
+   containing your GitHub username and a fine-grained personal access token (or
+   use an approved GitHub App credential). Never put a token in the repository
+   URL, `Jenkinsfile`, or build parameters. Select that credential in the job's
+   SCM configuration. Public repositories can be checked out without credentials.
+2. In Jenkins, create a **Multibranch Pipeline** or a **Pipeline** job configured
+   to load the `Jenkinsfile` from this repository and branch. The Jenkinsfile
+   checks out the job's configured SCM using `checkout scm`.
+3. In **Manage Jenkins > Credentials**, add a **Username with password**
+   credential with ID `eventhub-qa-test-account`. Use only the dedicated
+   non-production account. The pipeline binds its username/password to
+   `TEST_USERNAME`/`TEST_PASSWORD`; it does not echo these values.
+4. Start **Build with Parameters** and enter the seven non-secret values:
+   `BASE_URL`, `API_BASE_URL`, `EVENT_CITY`, `EVENT_VENUE`,
+   `TEST_CUSTOMER_NAME`, `TEST_CUSTOMER_EMAIL`, and `TEST_CUSTOMER_PHONE`.
+   Use approved QA endpoints and synthetic test customer data. These are build
+   parameters and are not secret storage; do not put credentials, tokens, or
+   other secrets in them. `TEST_ENV` is fixed to `qa` by the pipeline.
+5. Run the branch build from Jenkins. It also can be triggered through the job's
+   normal SCM webhook/polling configuration once the repository branch is pushed.
+
+The generated Cucumber JSON, HTML, JUnit XML, Allure results, and generated
+Allure HTML report are archived under the build's **Artifacts**. JUnit results
+are published in the Jenkins **Tests** view. If the Allure Jenkins plugin is
+installed, configure its post-build publishing step to consume
+`reports/allure-results`; report generation and archiving do not depend on that
+plugin.
+
+The E2E stage requires `API_BASE_URL` because the shared Cucumber hooks create an
+API context for `@e2e` scenarios. A successful booking is not cancelled or
+deleted by the feature; created test events remain in the QA application. Do not
+run the job against production or with real customer data.
+
+### Run checks from VS Code
+
+From the VS Code PowerShell terminal, run the safe local checks with:
+
+```powershell
+npm ci
+npm run install:browsers
+npm run lint
+npm run format:check
+npm run test:config
+npm run test:ui:unit
+npm run test:e2e:utils
+npm run test:global-cache
+npm run test:reporting
+npm run test:vscode
+```
+
+These commands validate the project but do not execute the Jenkinsfile. To run
+the Jenkins pipeline, commit and push the reviewed changes to the configured
+branch using the organization's approved Git installation; then trigger the
+branch build in Jenkins (or let the configured SCM webhook do so). On a push
+blocked by Windows Application Control, follow the Git troubleshooting steps
+below and do not bypass the policy.
+
+### Jenkins and Git troubleshooting
+
+- **Checkout authentication:** verify the selected Jenkins SCM credential is
+  authorized for the repository and that the job is using the expected branch.
+  Keep GitHub tokens in Jenkins Credentials, not in a URL or console command.
+- **Node.js tool not found:** configure the NodeJS installation with the exact
+  name `NodeJS 24`, then confirm the agent has network access if Jenkins installs
+  Node.js automatically.
+- **Playwright dependency installation fails:** ensure the Linux agent can run
+  the system package installer with the required privileges, or provision the
+  documented Playwright Chromium system libraries on the agent image.
+- **E2E preflight reports a missing value:** supply all seven build parameters
+  and the `eventhub-qa-test-account` Jenkins credential. Values are validated
+  without printing them.
+- **Allure HTML generation fails:** check that Java 8+ is available; inspect
+  archived `reports/allure-results` even if HTML generation could not complete.
+- **A test fails:** use the Jenkins Tests view and archived Cucumber/Allure
+  artifacts. The pipeline does not suppress test failures.
+- **Windows `git push` is blocked loading `libcurl-4.dll`:** do not disable
+  Windows Application Control or replace the DLL manually. Record the exact
+  error, run `where.exe git`, `git --exec-path`, and `git --version
+--build-options`, and compare `Get-Command git -All` with the expected
+  organization-approved Git for Windows installation. To inspect recent local
+  policy events, run:
+
+```powershell
+Get-WinEvent -FilterHashtable @{
+  LogName = 'Microsoft-Windows-CodeIntegrity/Operational'
+  StartTime = (Get-Date).AddHours(-4)
+} | Select-Object TimeCreated, Id, Message | Format-List
+```
+
+Ask IT to review the matching event and repair/reinstall Git through an
+approved source if a file is blocked or mismatched. The current Git
+configuration uses the Windows Schannel TLS backend and Git Credential
+Manager; do not change TLS settings or bypass policy as a workaround. Do not
+force-push.
+
 The Cucumber configuration writes HTML and JSON reports to `reports/` and Allure
-results to `reports/allure-results/`. Report outputs are ignored by Git.
+results to `reports/allure-results/`. It also writes JUnit XML to
+`reports/cucumber-junit.xml` for Jenkins test-result publishing. Report outputs
+are ignored by Git.
 Generating the Allure HTML report with the included Allure 2 CLI requires Java.
 
 ## Run or debug one scenario in VS Code

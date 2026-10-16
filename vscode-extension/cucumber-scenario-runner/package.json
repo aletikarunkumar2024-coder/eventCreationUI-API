@@ -1,0 +1,38 @@
+{
+  "name": "cucumber-scenario-runner",
+  "displayName": "Cucumber Scenario Runner (JavaScript)",
+  "description": "Run and debug one JavaScript Cucumber scenario from its feature file",
+  "version": "1.0.0",
+  "publisher": "aiplaywright",
+  "private": true,
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Testing"
+  ],
+  "keywords": [
+    "cucumber",
+    "gherkin",
+    "javascript",
+    "scenario",
+    "codelens"
+  ],
+  "activationEvents": [
+    "onLanguage:cucumber",
+    "workspaceContains:**/*.feature"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cucumberScenarioRunner.run",
+        "title": "Cucumber: Run Scenario"
+      },
+      {
+        "command": "cucumberScenarioRunner.debug",
+        "title": "Cucumber: Debug Scenario"
+      }
+    ]
+  }
+}

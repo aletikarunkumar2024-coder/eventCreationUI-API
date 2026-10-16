@@ -1,0 +1,45 @@
+{
+  "name": "playwright-cucumber-automation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BDD UI, API, and end-to-end automation framework using Playwright",
+  "engines": {
+    "node": ">=22 <25"
+  },
+  "scripts": {
+    "test": "cucumber-js",
+    "test:ui": "cucumber-js --tags \"@ui\"",
+    "test:api": "cucumber-js --tags \"@api\"",
+    "test:e2e": "cucumber-js --tags \"@e2e\" --format summary",
+    "test:e2e:scenario": "node scripts/run-e2e-debug.js --run",
+    "test:e2e:debug": "node scripts/run-e2e-debug.js",
+    "test:ui:unit": "node --test tests/ui/*.test.js",
+    "test:config": "node --test tests/config/*.test.js",
+    "test:global-cache": "node --test tests/utils/global-cache.test.js",
+    "test:vscode": "node --test tests/vscode/*.test.js",
+    "test:e2e:utils": "node --test tests/e2e/*.test.js",
+    "test:reporting": "node --test tests/reporting/*.test.js",
+    "test:smoke": "cucumber-js --tags \"@smoke\"",
+    "test:regression": "cucumber-js --tags \"@regression\"",
+    "test:parallel": "cucumber-js --parallel 4",
+    "report:allure": "allure generate reports/allure-results --clean --output reports/allure-report",
+    "report:open": "allure open reports/allure-report",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "install:browsers": "playwright install chromium"
+  },
+  "dependencies": {
+    "@cucumber/cucumber": "^13.3.0",
+    "dotenv": "^18.0.8",
+    "playwright": "^1.64.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "allure-commandline": "^2.34.1",
+    "allure-cucumberjs": "^3.13.0",
+    "eslint": "^10.12.0",
+    "globals": "^17.3.0",
+    "prettier": "^3.9.10"
+  }
+}

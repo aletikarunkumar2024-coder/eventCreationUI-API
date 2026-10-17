@@ -10,6 +10,7 @@ module.exports = {
       'progress',
       'html:reports/cucumber-report.html',
       'json:reports/cucumber-report.json',
+      'junit:reports/cucumber-junit.xml',
       './src/reporting/allure-cucumber-reporter.js',
     ],
     formatOptions: {

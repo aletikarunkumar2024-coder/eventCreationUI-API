@@ -45,57 +45,65 @@ application behavior. Do not run destructive tests against production.
 
 ## Jenkins CI pipeline
 
-The root `Jenkinsfile` targets a Linux Jenkins agent labelled `linux`, uses Node.js
-24, installs locked dependencies with `npm ci`, installs Chromium and its Linux
-system dependencies, runs the existing lint/format and Node.js test scripts, and
-then runs the `@e2e` Cucumber feature headlessly. That E2E scenario creates an
-EventHub event and books one ticket; configure it only for an approved QA/staging
+The root `Jenkinsfile` targets a Windows Jenkins agent labelled `windows` and
+uses Node.js 24. It installs locked dependencies with `npm ci`, installs
+Playwright Chromium, runs the existing lint/format and Node.js test scripts,
+and then runs the `@e2e` Cucumber feature headlessly. That E2E scenario creates
+an EventHub event and books one ticket; use only an approved QA/staging
 environment and a dedicated test account. The pipeline fixes `TEST_ENV=qa` and
-fails configuration rather than running with missing inputs. It never runs
-against production.
+fails the E2E stage when required inputs are missing. `TEST_ENV=qa` does not
+verify that a supplied URL is actually non-production, so restrict who can run
+the job and supply only approved non-production URLs.
 
 ### Jenkins prerequisites
 
 - Jenkins with Pipeline, Git, NodeJS, Credentials Binding, and JUnit plugins.
-- A Linux agent with the label `linux`, network access to npm and the QA app, and
-  permission to install Playwright's Linux browser dependencies (the
-  `playwright install --with-deps` command may require root or passwordless sudo).
+- An online Windows agent labelled `windows`, with network access to npm and the
+  approved QA app/API, and enough disk space to install Node dependencies and
+  Chromium. The agent account must be able to run Windows batch commands.
 - A NodeJS tool installation named exactly `NodeJS 24`, configured under
   **Manage Jenkins > Tools** with Node.js 24.
 - Java 8 or newer on the agent for generating the Allure HTML report.
-- Optional: the Allure Jenkins plugin to publish Allure results as a Jenkins
-  report. The pipeline archives Allure output whether or not that plugin is used.
+- The pipeline generates and archives Allure results and the Allure HTML report.
+  Publishing Allure as a separate Jenkins report requires the Allure Jenkins
+  plugin and an `allure` publisher step in the Jenkinsfile.
 
 ### Create and configure the Jenkins job
 
-1. Ensure this branch is available in the configured GitHub repository. For a
-   private repository, add a Jenkins credential of type **Username with password**
-   containing your GitHub username and a fine-grained personal access token (or
-   use an approved GitHub App credential). Never put a token in the repository
-   URL, `Jenkinsfile`, or build parameters. Select that credential in the job's
-   SCM configuration. Public repositories can be checked out without credentials.
-2. In Jenkins, create a **Multibranch Pipeline** or a **Pipeline** job configured
-   to load the `Jenkinsfile` from this repository and branch. The Jenkinsfile
-   checks out the job's configured SCM using `checkout scm`.
-3. In **Manage Jenkins > Credentials**, add a **Username with password**
+1. Configure a Windows Jenkins node/agent and assign it the label `windows`.
+   Confirm it can reach npm and the approved QA application/API.
+2. Under **Manage Jenkins > Tools**, add a NodeJS installation named exactly
+   `NodeJS 24` and configure it to provide Node.js 24.
+3. Ensure the branch containing the root `Jenkinsfile` is available in the
+   repository. Create a **Multibranch Pipeline** job or a **Pipeline** job
+   configured to load that `Jenkinsfile`. For a private repository, configure
+   SCM checkout with an approved Jenkins credential (for example, a GitHub App
+   credential or a username and fine-grained token); never put a token in the
+   repository URL, `Jenkinsfile`, or build parameters. The Jenkinsfile checks
+   out the job's configured SCM using `checkout scm`.
+4. In **Manage Jenkins > Credentials**, add a **Username with password**
    credential with ID `eventhub-qa-test-account`. Use only the dedicated
    non-production account. The pipeline binds its username/password to
    `TEST_USERNAME`/`TEST_PASSWORD`; it does not echo these values.
-4. Start **Build with Parameters** and enter the seven non-secret values:
+5. Run the pipeline once so Jenkins loads the parameter definitions from the
+   Jenkinsfile. The first run may fail at the E2E preflight because the
+   parameters are blank; it will not start the E2E test without the required
+   values.
+6. Select **Build with Parameters** and enter the seven non-secret values:
    `BASE_URL`, `API_BASE_URL`, `EVENT_CITY`, `EVENT_VENUE`,
    `TEST_CUSTOMER_NAME`, `TEST_CUSTOMER_EMAIL`, and `TEST_CUSTOMER_PHONE`.
    Use approved QA endpoints and synthetic test customer data. These are build
    parameters and are not secret storage; do not put credentials, tokens, or
    other secrets in them. `TEST_ENV` is fixed to `qa` by the pipeline.
-5. Run the branch build from Jenkins. It also can be triggered through the job's
-   normal SCM webhook/polling configuration once the repository branch is pushed.
+7. Start the parameterized build. Configure a repository webhook or SCM polling
+   separately if you want later commits to trigger builds automatically.
 
 The generated Cucumber JSON, HTML, JUnit XML, Allure results, and generated
 Allure HTML report are archived under the build's **Artifacts**. JUnit results
-are published in the Jenkins **Tests** view. If the Allure Jenkins plugin is
-installed, configure its post-build publishing step to consume
-`reports/allure-results`; report generation and archiving do not depend on that
-plugin.
+are published in the Jenkins **Tests** view. Allure report generation uses the
+included CLI; Java is required for that generation. The optional Allure Jenkins
+plugin can publish results in the Jenkins UI after its pipeline publisher is
+added to the Jenkinsfile.
 
 The E2E stage requires `API_BASE_URL` because the shared Cucumber hooks create an
 API context for `@e2e` scenarios. A successful booking is not cancelled or
@@ -134,9 +142,9 @@ below and do not bypass the policy.
 - **Node.js tool not found:** configure the NodeJS installation with the exact
   name `NodeJS 24`, then confirm the agent has network access if Jenkins installs
   Node.js automatically.
-- **Playwright dependency installation fails:** ensure the Linux agent can run
-  the system package installer with the required privileges, or provision the
-  documented Playwright Chromium system libraries on the agent image.
+- **Playwright browser installation fails:** check the Windows agent's network
+  access and permissions to install Chromium in the Jenkins agent account's
+  Playwright browser cache.
 - **E2E preflight reports a missing value:** supply all seven build parameters
   and the `eventhub-qa-test-account` Jenkins credential. Values are validated
   without printing them.

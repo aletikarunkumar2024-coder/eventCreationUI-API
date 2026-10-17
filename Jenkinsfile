@@ -1,8 +1,6 @@
 
 pipeline {
-    agent {
-        label 'windows'
-    }
+    agent any
 
     options {
         skipDefaultCheckout(true)
@@ -54,10 +52,15 @@ pipeline {
                 bat '''
                     @echo off
                     node --version
+                    if errorlevel 1 exit /b 1
                     npm --version
+                    if errorlevel 1 exit /b 1
                     node -e "const major = Number(process.versions.node.split('.')[0]); if (major < 22 || major >= 25) { console.error('Node.js 22, 23, or 24 is required.'); process.exit(1); }"
+                    if errorlevel 1 exit /b 1
                     java -version
+                    if errorlevel 1 exit /b 1
                     git --version
+                    if errorlevel 1 exit /b 1
                 '''
             }
         }
@@ -68,7 +71,7 @@ pipeline {
             }
         }
 
-        stage('Install Chromium') {
+        stage('Install Playwright Chromium') {
             steps {
                 bat 'npx playwright install chromium'
             }
@@ -112,7 +115,7 @@ pipeline {
             }
         }
 
-        stage('Cucumber/Playwright end-to-end tests') {
+        stage('Cucumber Playwright UI and API E2E tests') {
             steps {
                 withCredentials([
                     usernamePassword(
@@ -123,40 +126,41 @@ pipeline {
                 ]) {
                     bat '''
                         @echo off
+
                         if not defined BASE_URL (
-                            echo ERROR: Set the BASE_URL build parameter.
+                            echo ERROR: Set BASE_URL.
                             exit /b 1
                         )
                         if not defined API_BASE_URL (
-                            echo ERROR: Set the API_BASE_URL build parameter.
+                            echo ERROR: Set API_BASE_URL.
                             exit /b 1
                         )
                         if not defined EVENT_CITY (
-                            echo ERROR: Set the EVENT_CITY build parameter.
+                            echo ERROR: Set EVENT_CITY.
                             exit /b 1
                         )
                         if not defined EVENT_VENUE (
-                            echo ERROR: Set the EVENT_VENUE build parameter.
+                            echo ERROR: Set EVENT_VENUE.
                             exit /b 1
                         )
                         if not defined TEST_CUSTOMER_NAME (
-                            echo ERROR: Set the TEST_CUSTOMER_NAME build parameter.
+                            echo ERROR: Set TEST_CUSTOMER_NAME.
                             exit /b 1
                         )
                         if not defined TEST_CUSTOMER_EMAIL (
-                            echo ERROR: Set the TEST_CUSTOMER_EMAIL build parameter.
+                            echo ERROR: Set TEST_CUSTOMER_EMAIL.
                             exit /b 1
                         )
                         if not defined TEST_CUSTOMER_PHONE (
-                            echo ERROR: Set the TEST_CUSTOMER_PHONE build parameter.
+                            echo ERROR: Set TEST_CUSTOMER_PHONE.
                             exit /b 1
                         )
                         if not defined TEST_USERNAME (
-                            echo ERROR: Configure the Jenkins test account credential.
+                            echo ERROR: Jenkins test account credential is missing.
                             exit /b 1
                         )
                         if not defined TEST_PASSWORD (
-                            echo ERROR: Configure the Jenkins test account credential.
+                            echo ERROR: Jenkins test account password is missing.
                             exit /b 1
                         )
 
@@ -185,17 +189,21 @@ pipeline {
             )
 
             archiveArtifacts(
-                artifacts: 'reports/**,test-results/**',
+                artifacts: 'reports/**,test-results/**,playwright-report/**',
                 allowEmptyArchive: true
             )
         }
 
-        failure {
-            echo 'Build failed. Review the failed stage and archived reports.'
+        success {
+            echo 'Playwright and Cucumber automation completed successfully.'
         }
 
-        success {
-            echo 'Automation pipeline completed successfully.'
+        failure {
+            echo 'Build failed. Check Console Output and archived test reports.'
+        }
+
+        cleanup {
+            echo 'Jenkins pipeline execution finished.'
         }
     }
 }
